@@ -344,22 +344,24 @@ public abstract class AbfsClient implements Closeable {
     LOG.trace("primaryUserGroup is {}", this.primaryUserGroup);
   }
 
+
+  /**
+   * Constructs an AbfsClient instance with all authentication and configuration options.
+   *
+   * @param baseUrl The base URL for the ABFS endpoint.
+   * @param sharedKeyCredentials Shared key credentials for authentication.
+   * @param abfsConfiguration The ABFS configuration.
+   * @param tokenProvider The access token provider for OAuth authentication.
+   * @param sasTokenProvider The SAS token provider for SAS authentication.
+   * @param encryptionContextProvider The encryption context provider.
+   * @param abfsClientContext The client context
+   * @param abfsServiceType The ABFS service type (e.g., Blob, DFS).
+   * @throws IOException if initialization fails.
+   */
   public AbfsClient(final URL baseUrl,
       final SharedKeyCredentials sharedKeyCredentials,
       final AbfsConfiguration abfsConfiguration,
       final AccessTokenProvider tokenProvider,
-      final EncryptionContextProvider encryptionContextProvider,
-      final AbfsClientContext abfsClientContext,
-      final AbfsServiceType abfsServiceType)
-      throws IOException {
-    this(baseUrl, sharedKeyCredentials, abfsConfiguration,
-        encryptionContextProvider, abfsClientContext, abfsServiceType);
-    this.tokenProvider = tokenProvider;
-  }
-
-  public AbfsClient(final URL baseUrl,
-      final SharedKeyCredentials sharedKeyCredentials,
-      final AbfsConfiguration abfsConfiguration,
       final SASTokenProvider sasTokenProvider,
       final EncryptionContextProvider encryptionContextProvider,
       final AbfsClientContext abfsClientContext,
@@ -368,6 +370,7 @@ public abstract class AbfsClient implements Closeable {
     this(baseUrl, sharedKeyCredentials, abfsConfiguration,
         encryptionContextProvider, abfsClientContext, abfsServiceType);
     this.sasTokenProvider = sasTokenProvider;
+    this.tokenProvider = tokenProvider;
   }
 
   @Override
@@ -1179,7 +1182,7 @@ public abstract class AbfsClient implements Closeable {
                                          String cachedSasToken)
       throws SASTokenProviderException {
     String sasToken = null;
-    if (this.authType == AuthType.SAS) {
+    if (getAbfsConfiguration().validateForSASType(this.authType)) {
       try {
         LOG.trace("Fetch SAS token for {} on {}", operation, path);
         if (cachedSasToken == null) {
