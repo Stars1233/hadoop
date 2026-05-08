@@ -35,7 +35,7 @@ jobs:
           cache: 'maven'
           check-latest: false
       - name: Build Hadoop maven plugins
-        run: ./mvnw --batch-mode -f hadoop-maven-plugins/pom.xml install
+        run: cd hadoop-maven-plugins && ../mvnw --batch-mode install
       - name: Build Hadoop
         run: ./mvnw --batch-mode clean install -DskipTests -DskipShade
       - name: Build document
