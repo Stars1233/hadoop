@@ -104,21 +104,27 @@ public class TestRouterAsyncHandlerQueueOverflow {
     cluster.waitNamenodeRegistration();
     cluster.waitActiveNamespaces();
 
-    testLatch = new CountDownLatch(1);
     ns0 = cluster.getNameservices().get(0);
     MiniRouterDFSCluster.NamenodeContext nn0 = cluster.getNamenode(ns0, null);
     FSNamesystem spyNamesystem = NameNodeAdapterMockitoUtil.spyOnNamesystem(nn0.getNamenode());
     // Mock one slow operation. Any public interface from FSNamesystem will do.
-    Mockito.doAnswer(invocationOnMock -> {
-      String invokePath = invocationOnMock.getArgument(1);
-      if (invokePath.startsWith("/veryBigOperation")) {
-        testLatch.await();
-      } else {
-        return invocationOnMock.callRealMethod();
-      }
-      return null;
-    }).when(spyNamesystem).getFilesBlockingDecom(anyLong(), anyString());
+    spyNamesystem.writeLock();
+    Mockito.when(spyNamesystem.getFilesBlockingDecom(anyLong(), anyString()))
+        .thenAnswer(invocationOnMock -> {
+          if (testLatch == null) {
+            return null;
+          }
+          String invokePath = invocationOnMock.getArgument(1);
+          if (invokePath.startsWith("/veryBigOperation")) {
+            testLatch.await();
+          } else {
+            return invocationOnMock.callRealMethod();
+          }
+          return null;
+        });
+    spyNamesystem.writeUnlock();
 
+    testLatch = new CountDownLatch(1);
     MiniRouterDFSCluster.RouterContext router = cluster.getRandomRouter();
     routerRpcServer = router.getRouterRpcServer();
     routerRpcServer.initAsyncThreadPools(routerConf);
@@ -169,7 +175,7 @@ public class TestRouterAsyncHandlerQueueOverflow {
     // Queue full, rejected
     asyncRpcClient.invokeMethod(ugi, namenodes, true, protocol, method.getMethod(), params);
     assertEquals(2, nsExecutor.getQueue().size());
-    String expectedMsg = "Namespace '" + ns0 + "' is overloaded (queue size: " + QUEUE_CAP + ")";
+    String expectedMsg = "Namespace '" + ns0 + "' async handler is busy.";
     LambdaTestUtils.intercept(StandbyException.class, expectedMsg,
         () -> syncReturn(FileStatus.class));
     // Unstuck the namenode so we can terminate this test
